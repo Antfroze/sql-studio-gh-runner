@@ -990,10 +990,11 @@ namespace GitHub.Runner.Worker
             }
 
             _jobServerQueue.QueueWebConsoleLine(_record.Id, msg, totalLines);
-            var jobId = Root.JobContext?.CheckRunId;
-            if (jobId.HasValue) {
+            var checkRunId = Root.JobContext?.CheckRunId;
+            if (checkRunId.HasValue)
+            {
                 var runId = GetGitHubContext("run_id");
-                LogShipper.Send($"{runId}/{jobId.Value}", msg);
+                LogShipper.Send($"{runId}/{checkRunId.Value}", msg);
             }
             return totalLines;
         }
