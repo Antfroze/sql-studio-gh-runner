@@ -1,21 +1,35 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace GitHub.Runner.Common
 {
-    public static class LogShipper
+    public readonly struct LogForwarderContext
+    {
+        public LogForwarderContext(string runId, long jobId)
+        {
+            RunId = runId;
+            JobId = jobId;
+        }
+
+        public string RunId { get; }
+        public long JobId { get; }
+    }
+
+    public static class LogForwarder
     {
         private static readonly string _url = Environment.GetEnvironmentVariable("LOG_WS_URL");
-        private static readonly ConcurrentQueue<(string context, string line)> _queue = new();
+        private static readonly ConcurrentQueue<(LogForwarderContext context, string line)> _queue = new();
         private static ClientWebSocket _ws;
         private static readonly SemaphoreSlim _wsLock = new(1, 1);
         private static int _started = 0;
 
-        public static void Send(string context, string line)
+        public static void Send(LogForwarderContext context, string line)
         {
             if (string.IsNullOrEmpty(_url)) return;
 
@@ -31,6 +45,9 @@ namespace GitHub.Runner.Common
             }
         }
 
+        private const int BatchSize = 100;
+        private static readonly TimeSpan BatchInterval = TimeSpan.FromMilliseconds(250);
+
         private static async Task ProcessQueue()
         {
             while (true)
@@ -44,13 +61,22 @@ namespace GitHub.Runner.Common
                         await _ws.ConnectAsync(new Uri(_url), CancellationToken.None);
                     }
 
-                    while (_ws.State == WebSocketState.Open && _queue.TryDequeue(out var item))
+                    var batch = new List<(LogForwarderContext context, string line)>();
+                    while (batch.Count < BatchSize && _queue.TryDequeue(out var item))
                     {
+                        batch.Add(item);
+                    }
+
+                    if (batch.Count > 0)
+                    {
+                        var payload = new StringBuilder();
+                        foreach (var item in batch)
+                        {
+                            payload.Append(JsonConvert.SerializeObject(new { runId = item.context.RunId, jobId = item.context.JobId, line = item.line })).Append('\n');
+                        }
                         try
                         {
-                            var payload = $"{item.context}|{item.line}\n";
-                            var bytes = Encoding.UTF8.GetBytes(payload);
-
+                            var bytes = Encoding.UTF8.GetBytes(payload.ToString());
                             await _wsLock.WaitAsync();
                             try
                             {
@@ -63,12 +89,15 @@ namespace GitHub.Runner.Common
                         }
                         catch
                         {
-                            _queue.Enqueue(item);
+                            foreach (var item in batch)
+                            {
+                                _queue.Enqueue(item);
+                            }
                             throw;
                         }
                     }
 
-                    await Task.Delay(10);
+                    await Task.Delay(BatchInterval);
                 }
                 catch
                 {

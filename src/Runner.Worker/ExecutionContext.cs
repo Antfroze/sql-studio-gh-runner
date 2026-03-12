@@ -157,6 +157,7 @@ namespace GitHub.Runner.Worker
         // only job level ExecutionContext will track throttling delay.
         private long _totalThrottlingDelayInMilliseconds = 0;
         private bool _stepTelemetryPublished = false;
+        private LogForwarderContext? _logForwarderContext;
 
         public ExecutionContext()
             : this(parent: null, embedded: false)
@@ -917,6 +918,10 @@ namespace GitHub.Runner.Worker
             }
             ExpressionValues["github"] = githubContext;
 
+            var runId = GetGitHubContext("run_id");
+            var checkRunId = jobContext.CheckRunId;
+            _logForwarderContext = checkRunId.HasValue ? new LogForwarderContext(runId, checkRunId.Value) : null;
+
             Trace.Info("Initialize Env context");
 #if OS_WINDOWS
             ExpressionValues["env"] = new DictionaryContextData();
@@ -990,11 +995,9 @@ namespace GitHub.Runner.Worker
             }
 
             _jobServerQueue.QueueWebConsoleLine(_record.Id, msg, totalLines);
-            var checkRunId = Root.JobContext?.CheckRunId;
-            if (checkRunId.HasValue)
+            if (Root._logForwarderContext.HasValue)
             {
-                var runId = GetGitHubContext("run_id");
-                LogShipper.Send($"{runId}/{checkRunId.Value}", msg);
+                LogForwarder.Send(Root._logForwarderContext.Value, msg);
             }
             return totalLines;
         }
