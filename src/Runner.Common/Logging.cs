@@ -87,8 +87,6 @@ namespace GitHub.Runner.Common
             _pageWriter.WriteLine(line);
             _resultsBlockWriter.WriteLine(line);
 
-            LogShipper.Send($"{_timelineId}/{_timelineRecordId}", line);
-
             _totalLines++;
             if (line.IndexOf('\n') != -1)
             {

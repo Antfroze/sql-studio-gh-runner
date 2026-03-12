@@ -990,7 +990,9 @@ namespace GitHub.Runner.Worker
             }
 
             _jobServerQueue.QueueWebConsoleLine(_record.Id, msg, totalLines);
-            return totalLines;
+            var runId = GetGitHubContext("run_id");
+            LogShipper.Send($"{runId}/{Root._record.Id}", msg);
+           return totalLines;
         }
 
         public void QueueAttachFile(string type, string name, string filePath)
