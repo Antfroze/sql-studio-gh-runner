@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -990,9 +990,12 @@ namespace GitHub.Runner.Worker
             }
 
             _jobServerQueue.QueueWebConsoleLine(_record.Id, msg, totalLines);
-            var runId = GetGitHubContext("run_id");
-            LogShipper.Send($"{runId}/{Root._record.Id}", msg);
-           return totalLines;
+            var jobId = Root.JobContext?.CheckRunId;
+            if (jobId.HasValue) {
+                var runId = GetGitHubContext("run_id");
+                LogShipper.Send($"{runId}/{jobId.Value}", msg);
+            }
+            return totalLines;
         }
 
         public void QueueAttachFile(string type, string name, string filePath)
