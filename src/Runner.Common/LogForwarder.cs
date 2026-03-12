@@ -11,14 +11,14 @@ namespace GitHub.Runner.Common
 {
     public readonly struct LogForwarderContext
     {
-        public LogForwarderContext(string runId, long jobId)
+        public LogForwarderContext(string runId, double jobId)
         {
             RunId = runId;
             JobId = jobId;
         }
 
         public string RunId { get; }
-        public long JobId { get; }
+        public double JobId { get; }
     }
 
     public static class LogForwarder
